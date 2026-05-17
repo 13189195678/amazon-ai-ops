@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon AI Ops - 智能运营决策工作台</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ECharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- React CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel CDN for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        :root {
+            --primary: #10b981;
+            --secondary: #3b82f6;
+            --accent: #f59e0b;
+            --background: #f8fafc;
+            --surface: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+        }
+        
+        .dashboard-card {
+            background: var(--surface);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+        
+        .dashboard-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+        
+        .sidebar {
+            background: linear-gradient(180deg, #020617 0%, #0f172a 100%);
+        }
+        
+        .sidebar-nav-item {
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar-nav-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar-nav-item.active {
+            background: rgba(16, 185, 129, 0.2);
+            border-left: 3px solid var(--primary);
+        }
+        
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #10b981, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .status-connected {
+            background: #d1fae5;
+            color: #059669;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+        
+        .chart-container {
+            height: 300px;
+            width: 100%;
+            overflow: hidden;
+        }
+        
+        .table-header {
+            background: #f8fafc;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+        
+        .table-row {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s ease;
+        }
+        
+        .table-row:hover {
+            background: #f8fafc;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+        
+        .page-enter {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ====================== Demo Data ======================
+        const demoData = {
+            company: {
+                name: 'Amazon AI Ops',
+                brand: 'GrillMaster'
+            },
+            sales: {
+                monthlyRevenue: 386100,
+                monthlyOrders: 1245,
+                avgACOS: 0.24,
+                adSpend: 85340,
+                dailyData: generateDailySalesData()
+            },
+            inventory: {
+                totalAvailable: 1963,
+                totalInbound: 10325,
+                warehouses: [
+                    { code: 'WPCHI4', name: '美中 - 芝加哥', available: 4648, inbound: 2324 },
+                    { code: 'WPLA11', name: '美西 - 洛杉矶', available: 3748, inbound: 1874 },
+                    { code: 'WPPA2', name: '美东 - 宾州', available: 2625, inbound: 1312 },
+                    { code: 'WPHOU4', name: '美南 - 休斯顿', available: 1215, inbound: 607 },
+                    { code: 'WPLA15', name: '美西 - 洛杉矶 2', available: 52, inbound: 26 }
+                ],
+                asns: {
+                    overdue: { count: 149, qty: 4328 },
+                    next7days: { count: 15, qty: 1307 },
+                    days8to14: { count: 19, qty: 1545 },
+                    after15days: { count: 34, qty: 2791 }
+                }
+            },
+            skus: [
+                {
+                    sku: 'S0010GR00NBA',
+                    name: '03烧烤炉改款 灰色',
+                    spu: '03烧烤炉',
+                    revenue: 136000,
+                    orders: 170,
+                    stock: 633,
+                    coverDays: 56,
+                    rating: 4.6,
+                    reviews: 227
+                },
+                {
+                    sku: 'S0070BE00NBA',
+                    name: '07烧烤炉 米色',
+                    spu: '07烧烤炉',
+                    revenue: 23200,
+                    orders: 46,
+                    stock: 874,
+                    coverDays: 210,
+                    rating: 4.4,
+                    reviews: 145
+                },
+                {
+                    sku: 'S0070GR00NBA',
+                    name: '07烧烤炉 深灰',
+                    spu: '07烧烤炉',
+                    revenue: 26800,
+                    orders: 67,
+                    stock: 75,
+                    coverDays: 17,
+                    rating: 4.2,
+                    reviews: 98
+                },
+                {
+                    sku: 'S0080GR00NBA',
+                    name: '08烧烤炉 灰色',
+                    spu: '08烧烤炉',
+                    revenue: 89600,
+                    orders: 134,
+                    stock: 432,
+                    coverDays: 48,
+                    rating: 4.5,
+                    reviews: 167
+                },
+                {
+                    sku: 'S0010BK00NBA',
+                    name: '03烧烤炉改款 黑色',
+                    spu: '03烧烤炉',
+                    revenue: 110500,
+                    orders: 145,
+                    stock: 2,
+                    coverDays: 3,
+                    rating: 4.3,
+                    reviews: 189
+                }
+            ],
+            forecast: {
+                annualTargetCoverage: 67.5,
+                q2TargetCoverage: 91.1,
+                inventorySupportRate: 52.0,
+                procurementGap: 15029,
+                monthlyPlan: [
+                    { month: '2026-05', ship: 1200, produce: 1400, material: 1600 },
+                    { month: '2026-06', ship: 1300, produce: 1500, material: 1700 },
+                    { month: '2026-07', ship: 1450, produce: 1650, material: 1850 },
+                    { month: '2026-08', ship: 1600, produce: 1800, material: 2000 },
+                    { month: '2026-09', ship: 1750, produce: 1950, material: 2150 },
+                    { month: '2026-10', ship: 2000, produce: 2300, material: 2500 }
+                ],
+                actionItems: [
+                    { id: 1, sku: 'S0010BK00NBA', type: 'procurement', priority: 'high', status: 'pending', description: '03烧烤炉改款 黑色 缺口 4977件' },
+                    { id: 2, sku: 'S0070GR00NBA', type: 'procurement', priority: 'medium', status: 'pending', description: '07烧烤炉 深灰 缺口 1918件' },
+                    { id: 3, sku: 'S0080GR00NBA', type: 'procurement', priority: 'high', status: 'in_progress', description: '08烧烤炉 灰色 缺口 1114件' }
+                ]
+            }
+        };
+
+        function generateDailySalesData() {
+            const data = [];
+            const today = new Date(2026, 4, 15);
+            for (let i = 14; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                data.push({
+                    date: date.toISOString().split('T')[0],
+                    revenue: Math.floor(Math.random() * 40000 + 15000),
+                    orders: Math.floor(Math.random() * 100 + 30)
+                });
+            }
+            return data;
+        }
+
+        // ====================== API Client ======================
+        const API_BASE = 'http://127.0.0.1:5000';
+
+        async function checkApiHealth() {
+            try {
+                const resp = await fetch(`${API_BASE}/api/health`);
+                const data = await resp.json();
+                return data.configured;
+            } catch {
+                return false;
+            }
+        }
+
+        async function fetchApiData(endpoint) {
+            try {
+                const resp = await fetch(`${API_BASE}${endpoint}`);
+                const json = await resp.json();
+                if (json.code === 0) return json.data;
+                return null;
+            } catch {
+                return null;
+            }
+        }
+
+        // ====================== Components ======================
+
+        function App() {
+            const [activePage, setActivePage] = useState('sales');
+            const [isConnected, setIsConnected] = useState(true);
+            const [loading, setLoading] = useState(false);
+            const [usingApi, setUsingApi] = useState(false);
+            const [dataKey, setDataKey] = useState(0);
+
+            useEffect(() => {
+                checkApiHealth().then(configured => {
+                    if (configured) {
+                        setUsingApi(true);
+                        setLoading(true);
+                        Promise.all([
+                            fetchApiData('/api/sales'),
+                            fetchApiData('/api/inventory'),
+                            fetchApiData('/api/forecast')
+                        ]).then(([sales, inventory, forecast]) => {
+                            if (sales) Object.assign(demoData.sales, sales);
+                            if (inventory) Object.assign(demoData.inventory, inventory);
+                            if (forecast) Object.assign(demoData.forecast, forecast);
+                            setDataKey(k => k + 1);
+                            setLoading(false);
+                        });
+                    }
+                });
+            }, []);
+
+            return (
+                <div className="flex h-screen bg-slate-50">
+                    {loading && <LoadingOverlay />}
+                    <Sidebar activePage={activePage} setActivePage={setActivePage} usingApi={usingApi} />
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        <Header isConnected={isConnected} setIsConnected={setIsConnected} activePage={activePage} usingApi={usingApi} />
+                        <main className="flex-1 overflow-auto p-6">
+                            {activePage === 'sales' && <SalesDashboard key={dataKey} />}
+                            {activePage === 'inventory' && <InventoryDashboard key={dataKey} />}
+                            {activePage === 'forecast' && <ForecastDashboard key={dataKey} />}
+                        </main>
+                    </div>
+                </div>
+            );
+        }
+
+        function LoadingOverlay() {
+            return (
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-4">
+                        <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin" />
+                        <p className="text-slate-700 font-medium">正在加载领星数据...</p>
+                        <p className="text-slate-400 text-sm">首次加载可能需要几秒钟</p>
+                    </div>
+                </div>
+            );
+        }
+
+        function Sidebar({ activePage, setActivePage, usingApi }) {
+            const menuItems = [
+                { id: 'sales', label: '销售运营看板', icon: '📊' },
+                { id: 'forecast', label: '销售预测看板', icon: '📈' },
+                { id: 'inventory', label: '物流库存控制台', icon: '📦' }
+            ];
+
+            return (
+                <aside className="sidebar w-64 flex-shrink-0 flex flex-col">
+                    <div className="p-6 border-b border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center font-bold text-white">
+                                AO
+                            </div>
+                            <div>
+                                <h1 className="text-white font-bold text-lg">Amazon AI Ops</h1>
+                                <p className="text-slate-400 text-xs">{usingApi ? '领星数据已连接' : '离线演示模式'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <nav className="flex-1 py-6">
+                        <div className="px-4 mb-4 text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                            LIVE BOARDS
+                        </div>
+                        {menuItems.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setActivePage(item.id)}
+                                className={`sidebar-nav-item w-full px-6 py-3 text-left flex items-center gap-3 text-slate-300 hover:text-white ${activePage === item.id ? 'active text-white' : ''}`}
+                            >
+                                <span className="text-xl">{item.icon}</span>
+                                <span className="font-medium">{item.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+
+                    <div className="p-4 border-t border-slate-800">
+                        <div className="bg-slate-800/50 rounded-xl p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    A
+                                </div>
+                                <div>
+                                    <p className="text-white text-sm font-medium">Admin User</p>
+                                    <p className="text-slate-400 text-xs">admin@lifeorganizers.com</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            );
+        }
+
+        function Header({ isConnected, setIsConnected, activePage, usingApi }) {
+            const pageTitles = {
+                sales: '烧烤炉运营看板',
+                forecast: '销售预测看板',
+                inventory: '物流库存控制台'
+            };
+
+            return (
+                <header className="bg-white border-b border-slate-200 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900">{pageTitles[activePage]}</h2>
+                            <p className="text-sm text-slate-500">
+                                领星销售实时数据，使用与物流看板一致的烧烤炉成品 SKU 范围。
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <span className={`status-badge ${usingApi ? 'status-connected' : 'bg-amber-100 text-amber-800'}`}>
+                                {usingApi ? '领星已连接' : '演示数据'}
+                            </span>
+                                <button className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors">
+                                    刷新
+                                </button>
+                                <button className="btn-primary">
+                                    查看库存
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+            );
+        }
+
+        function KPICard({ title, value, subtitle, trend, trendUp }) {
+            return (
+                <div className="dashboard-card p-5">
+                    <div className="flex items-start justify-between mb-3">
+                        <h3 className="text-sm font-medium text-slate-500">{title}</h3>
+                        {trend && (
+                            <span className={`text-xs font-medium ${trendUp ? 'text-emerald-600' : 'text-red-600'}`}>
+                                {trendUp ? '↑' : '↓'} {trend}
+                            </span>
+                        )}
+                    </div>
+                    <p className="kpi-value mb-1">{value}</p>
+                    {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+                </div>
+            );
+        }
+
+        function SalesDashboard() {
+            const trendChartRef = useRef(null);
+            const categoryChartRef = useRef(null);
+
+            useEffect(() => {
+                const charts = [];
+
+                if (trendChartRef.current) {
+                    const chart = echarts.init(trendChartRef.current);
+                    const dates = demoData.sales.dailyData.map(d => d.date.slice(5));
+                    const revenues = demoData.sales.dailyData.map(d => d.revenue);
+                    const orders = demoData.sales.dailyData.map(d => d.orders);
+
+                    chart.setOption({
+                        tooltip: {
+                            trigger: 'axis',
+                            backgroundColor: 'white',
+                            borderColor: '#e2e8f0',
+                            textStyle: { color: '#0f172a' }
+                        },
+                        legend: {
+                            data: ['销售额', '订单数'],
+                            top: 0
+                        },
+                        grid: {
+                            left: '3%',
+                            right: '4%',
+                            bottom: '3%',
+                            top: '15%',
+                            containLabel: true
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: dates,
+                            axisLine: { lineStyle: { color: '#e2e8f0' } },
+                            axisLabel: { color: '#64748b' }
+                        },
+                        yAxis: [
+                            {
+                                type: 'value',
+                                name: '销售额',
+                                axisLine: { lineStyle: { color: '#e2e8f0' } },
+                                axisLabel: { color: '#64748b' }
+                            },
+                            {
+                                type: 'value',
+                                name: '订单数',
+                                axisLine: { lineStyle: { color: '#e2e8f0' } },
+                                axisLabel: { color: '#64748b' }
+                            }
+                        ],
+                        series: [
+                            {
+                                name: '销售额',
+                                type: 'line',
+                                smooth: true,
+                                data: revenues,
+                                lineStyle: { color: '#10b981', width: 3 },
+                                areaStyle: {
+                                    color: {
+                                        type: 'linear',
+                                        x: 0, y: 0, x2: 0, y2: 1,
+                                        colorStops: [
+                                            { offset: 0, color: 'rgba(16, 185, 129, 0.3)' },
+                                            { offset: 1, color: 'rgba(16, 185, 129, 0.05)' }
+                                        ]
+                                    }
+                                }
+                            },
+                            {
+                                name: '订单数',
+                                type: 'bar',
+                                yAxisIndex: 1,
+                                data: orders,
+                                itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] }
+                            }
+                        ]
+                    });
+                    charts.push(chart);
+                }
+
+                if (categoryChartRef.current) {
+                    const chart = echarts.init(categoryChartRef.current);
+                    chart.setOption({
+                        tooltip: {
+                            trigger: 'item',
+                            backgroundColor: 'white',
+                            borderColor: '#e2e8f0',
+                            textStyle: { color: '#0f172a' }
+                        },
+                        legend: {
+                            orient: 'vertical',
+                            left: 'left'
+                        },
+                        series: [
+                            {
+                                type: 'pie',
+                                radius: ['40%', '70%'],
+                                avoidLabelOverlap: false,
+                                itemStyle: {
+                                    borderRadius: 8,
+                                    borderColor: '#fff',
+                                    borderWidth: 2
+                                },
+                                label: {
+                                    show: true,
+                                    formatter: '{b}: {d}%'
+                                },
+                                data: [
+                                    { value: 324300, name: '燃气烧烤炉', itemStyle: { color: '#10b981' } },
+                                    { value: 61900, name: '便携烧烤炉', itemStyle: { color: '#f59e0b' } }
+                                ]
+                            }
+                        ]
+                    });
+                    charts.push(chart);
+                }
+
+                const handleResize = () => charts.forEach(c => c.resize());
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    charts.forEach(c => c.dispose());
+                };
+            }, []);
+
+            return (
+                <div className="page-enter">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+                        <KPICard
+                            title="本月销售额"
+                            value={`$${(demoData.sales.monthlyRevenue / 1000).toFixed(1)}K`}
+                            subtitle="本月截止今日 · 2026-05-01 至 2026-05-15"
+                            trend="+12.5%"
+                            trendUp={true}
+                        />
+                        <KPICard
+                            title="本月广告花费"
+                            value="Sync"
+                            subtitle="等待领星站内广告"
+                        />
+                        <KPICard
+                            title="本月ACOS"
+                            value="Sync"
+                            subtitle=""
+                        />
+                        <KPICard
+                            title="本月广告销售占比"
+                            value="Sync"
+                            subtitle=""
+                        />
+                        <KPICard
+                            title="当日销售额"
+                            value="$0"
+                            subtitle="05-15 PT实时 · 等待领星"
+                        />
+                        <KPICard
+                            title="当日广告花费"
+                            value="Sync"
+                            subtitle=""
+                        />
+                        <KPICard
+                            title="当日ACOS"
+                            value="Sync"
+                            subtitle=""
+                        />
+                        <KPICard
+                            title="当日广告销售占比"
+                            value="Sync"
+                            subtitle=""
+                        />
+                        <KPICard
+                            title="燃气烧烤炉当日"
+                            value="$0"
+                            subtitle="0单 · 0件 · 0.0%"
+                        />
+                        <KPICard
+                            title="便携烧烤炉当日"
+                            value="$0"
+                            subtitle="0单 · 0件 · 0.0%"
+                        />
+                        <KPICard
+                            title="父ASIN对账"
+                            value="2"
+                            subtitle=""
+                        />
+                        <KPICard
+                            title="日均销售额"
+                            value="$25.7K"
+                            subtitle="本月截止今日 · 20天"
+                        />
+                        <KPICard
+                            title="日均件数"
+                            value="47.3"
+                            subtitle="710件 / 15天"
+                        />
+                        <KPICard
+                            title="燃气烧烤炉动销率"
+                            value="46.9%"
+                            subtitle="38 / 81 SKU · 38件有销售"
+                        />
+                        <KPICard
+                            title="便携烧烤炉动销率"
+                            value="57.1%"
+                            subtitle="8 / 14 SKU · 8件有销售"
+                        />
+                        <KPICard
+                            title="有销SKU"
+                            value="48.4%"
+                            subtitle="46 / 95 · 有销售"
+                        />
+                        <KPICard
+                            title="可售库存"
+                            value="1,787"
+                            subtitle="5仓 · 40 SKU"
+                        />
+                        <KPICard
+                            title="覆盖天数"
+                            value="37.8"
+                            subtitle="可售库存 / 当前日均"
+                        />
+                        <KPICard
+                            title="在途/待入"
+                            value="8,010"
+                            subtitle=""
+                        />
+                        <KPICard
+                            title="燃气烧烤炉星级"
+                            value="4.6"
+                            subtitle="B0GZVHZWY"
+                        />
+                        <KPICard
+                            title="便携烧烤炉星级"
+                            value="4.3"
+                            subtitle="B0FWCNJFQ5"
+                        />
+                        <KPICard
+                            title="燃气烧烤炉REVIEW"
+                            value="227"
+                            subtitle="主ASIN口径"
+                        />
+                        <KPICard
+                            title="便携烧烤炉REVIEW"
+                            value="70"
+                            subtitle="主ASIN口径"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-4 mb-6 flex-wrap">
+                        <select className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            <option>全部烧烤炉类型</option>
+                            <option>燃气烧烤炉</option>
+                            <option>便携烧烤炉</option>
+                        </select>
+                        <select className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            <option>全部SPU</option>
+                            <option>03烧烤炉</option>
+                            <option>07烧烤炉</option>
+                            <option>08烧烤炉</option>
+                        </select>
+                        <select className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            <option>全部价格层</option>
+                        </select>
+                        <input type="date" value="2026-05-01" className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white" />
+                        <input type="date" value="2026-05-15" className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white" />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <div className="lg:col-span-2 dashboard-card p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-slate-900">📈 本月销售趋势</h3>
+                                <span className="text-xs text-slate-500">Avg: $25.7K</span>
+                            </div>
+                            <div ref={trendChartRef} className="chart-container" />
+                        </div>
+
+                        <div className="dashboard-card p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-slate-900">🥧 烧烤炉类型贡献</h3>
+                                <span className="text-xs text-slate-500">BBQ Scope</span>
+                            </div>
+                            <div ref={categoryChartRef} className="chart-container" />
+                            
+                            <div className="mt-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                                        <span className="text-sm text-slate-600">燃气烧烤炉</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-semibold">$324.3K</p>
+                                        <p className="text-xs text-slate-500">84.0%</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-amber-500" />
+                                        <span className="text-sm text-slate-600">便携烧烤炉</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-semibold">$61.9K</p>
+                                        <p className="text-xs text-slate-500">16.0%</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 dashboard-card overflow-hidden">
+                            <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-transparent">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold text-slate-900">📋 SKU经营排行</h3>
+                                    <span className="text-xs text-slate-500">
+                                        GrillMaster-US - 全店烧烤炉 · 95个成品SKU，颜色按深灰/浅灰精细展示，表格可上下滚动。
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto max-h-96">
+                                <table className="w-full">
+                                    <thead className="table-header sticky top-0">
+                                        <tr>
+                                            <th className="text-left px-4 py-3">成品SKU</th>
+                                            <th className="text-left px-4 py-3">类型/价格层</th>
+                                            <th className="text-left px-4 py-3">产品/颜色/映射</th>
+                                            <th className="text-right px-4 py-3">销售表现</th>
+                                            <th className="text-right px-4 py-3">成交/标价</th>
+                                            <th className="text-center px-4 py-3">星级/REVIEW</th>
+                                            <th className="text-right px-4 py-3">库存联动</th>
+                                            <th className="text-right px-4 py-3">覆盖</th>
+                                            <th className="text-right px-4 py-3">贡献</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {demoData.skus.map((sku, idx) => (
+                                            <tr key={sku.sku} className="table-row">
+                                                <td className="px-4 py-4">
+                                                    <p className="font-mono text-sm font-medium text-slate-900">{sku.sku}</p>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                                                        {sku.spu}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <p className="text-sm text-slate-900">{sku.name}</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <p className="font-medium text-slate-900">${(sku.revenue / 1000).toFixed(1)}K</p>
+                                                    <p className="text-xs text-slate-500">{sku.orders}单</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <p className="text-sm text-slate-900">$800</p>
+                                                    <p className="text-xs text-slate-500">$799.99</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-center">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <span className="text-yellow-500">★</span>
+                                                        <span className="text-sm">{sku.rating}</span>
+                                                        <span className="text-xs text-slate-500">{sku.reviews}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <p className={`font-medium ${sku.stock < 10 ? 'text-red-600' : 'text-slate-900'}`}>
+                                                        {sku.stock}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500">在途 2,789</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <div className="w-16 progress-bar">
+                                                            <div 
+                                                                className="progress-fill"
+                                                                style={{
+                                                                    width: `${Math.min(sku.coverDays / 100 * 100, 100)}%`,
+                                                                    backgroundColor: sku.coverDays < 14 ? '#ef4444' : sku.coverDays < 30 ? '#f59e0b' : '#10b981'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span className={`text-xs font-medium ${sku.coverDays < 14 ? 'text-red-600' : sku.coverDays < 30 ? 'text-amber-600' : 'text-slate-700'}`}>
+                                                            {sku.coverDays}天
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <span className="text-sm text-slate-900">35.2%</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="dashboard-card p-6">
+                                <h3 className="font-semibold text-slate-900 mb-4">📊 产品/颜色/渠道拆解</h3>
+                                <p className="text-xs text-slate-500 mb-4">客单价 / 件均价</p>
+                                
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                        <p className="text-2xl font-bold text-slate-900">$641</p>
+                                        <p className="text-xs text-slate-500">客单价</p>
+                                        <p className="text-xs text-slate-400">销售额 / 订单数</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                        <p className="text-2xl font-bold text-slate-900">$544</p>
+                                        <p className="text-xs text-slate-500">件均价</p>
+                                        <p className="text-xs text-slate-400">销售额 / 销量件数</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                        <p className="text-2xl font-bold text-slate-900">1.18</p>
+                                        <p className="text-xs text-slate-500">每单件数</p>
+                                        <p className="text-xs text-slate-400">销量件数 / 订单数</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                        <p className="text-2xl font-bold text-slate-900">$8.4K</p>
+                                        <p className="text-xs text-slate-500">SKU均销售额</p>
+                                        <p className="text-xs text-slate-400">销售额 / 有销量SKU</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                        <p className="text-2xl font-bold text-slate-900">35.2%</p>
+                                        <p className="text-xs text-slate-500">TOP SKU贡献</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                        <p className="text-2xl font-bold text-slate-900">14</p>
+                                        <p className="text-xs text-slate-500">有销售天数</p>
+                                        <p className="text-xs text-slate-400">本月截止今日 · 2026...</p>
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs text-slate-600 font-medium">每日成交价 / Listing标价</span>
+                                        <span className="text-xs text-amber-600 font-medium">估算口径</span>
+                                    </div>
+                                    
+                                    <div className="space-y-3 mt-4">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-slate-600">03烧烤炉改款 灰色</span>
+                                            <div className="text-right">
+                                                <p className="font-medium text-slate-900">$799.99</p>
+                                                <p className="text-xs text-slate-500">222件 · 14天成交 · 3个SKU</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-slate-600">08烧烤炉 黑色</span>
+                                            <div className="text-right">
+                                                <p className="font-medium text-slate-900">$699.99</p>
+                                                <p className="text-xs text-slate-500">84件 · 14天成交 · 最低SKU</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="dashboard-card p-4 bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs text-slate-600">GrillMaster-US · 全店烧烤炉 · 本月截止今日</span>
+                                    <button className="btn-primary text-xs py-1 px-3">应用</button>
+                                </div>
+                                <p className="text-xs text-slate-500">2026-05-01 至 2026-05-15 · Amazon北美站 · 太平洋时间</p>
+                                <p className="text-xs text-slate-400 mt-1">100.0% 销售占比 · 46个动销成品 SKU</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function InventoryDashboard() {
+            const warehouseChartRef = useRef(null);
+
+            useEffect(() => {
+                const charts = [];
+                if (warehouseChartRef.current) {
+                    const chart = echarts.init(warehouseChartRef.current);
+                    chart.setOption({
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'shadow' },
+                            backgroundColor: 'white',
+                            borderColor: '#e2e8f0',
+                            formatter: function(params) {
+                                const lines = params.map(p => {
+                                    return `${p.marker} ${p.seriesName}: ${p.value.toLocaleString()}件`;
+                                });
+                                const total = params.reduce((sum, p) => sum + p.value, 0);
+                                return `${params[0].axisValue}<br/>${lines.join('<br/>')}<br/><strong>合计: ${total.toLocaleString()}件</strong>`;
+                            }
+                        },
+                        legend: {
+                            data: ['可售库存', '待入库'],
+                            top: 0
+                        },
+                        grid: {
+                            left: '3%',
+                            right: '6%',
+                            bottom: '3%',
+                            top: '15%',
+                            containLabel: true
+                        },
+                        xAxis: {
+                            type: 'value',
+                            axisLine: { lineStyle: { color: '#e2e8f0' } },
+                            axisLabel: {
+                                formatter: function(val) {
+                                    if (val >= 1000) return (val / 1000).toFixed(1) + 'K';
+                                    return val;
+                                }
+                            }
+                        },
+                        yAxis: {
+                            type: 'category',
+                            data: demoData.inventory.warehouses.map(w => w.name),
+                            axisLine: { lineStyle: { color: '#e2e8f0' } }
+                        },
+                        series: [
+                            {
+                                name: '可售库存',
+                                type: 'bar',
+                                stack: 'total',
+                                data: demoData.inventory.warehouses.map(w => w.available),
+                                itemStyle: { color: '#10b981', borderRadius: [0, 4, 4, 0] },
+                                barMaxWidth: 30
+                            },
+                            {
+                                name: '待入库',
+                                type: 'bar',
+                                stack: 'total',
+                                data: demoData.inventory.warehouses.map(w => w.inbound),
+                                itemStyle: { color: '#3b82f6', borderRadius: [0, 4, 4, 0] },
+                                barMaxWidth: 30
+                            }
+                        ]
+                    });
+                    charts.push(chart);
+                }
+
+                const handleResize = () => charts.forEach(c => c.resize());
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    charts.forEach(c => c.dispose());
+                };
+            }, []);
+
+            return (
+                <div className="page-enter">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <KPICard
+                            title="核心烧烤炉可售成套"
+                            value="1,963"
+                            subtitle="只看 GrillMaster-US 烧烤炉"
+                        />
+                        <KPICard
+                            title="待到货/待上架成套"
+                            value="10,325"
+                            subtitle="成套口径：成品件数换算"
+                        />
+                        <KPICard
+                            title="核心成品SKU"
+                            value="68"
+                            subtitle="5个仓有分布"
+                        />
+                        <KPICard
+                            title="ASN ETA 成套"
+                            value="9,971"
+                            subtitle="217行预测 · 风险 0 SKU"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-4 mb-6 flex-wrap">
+                        <select className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            <option>全部仓库</option>
+                            {demoData.inventory.warehouses.map(w => (
+                                <option key={w.code}>{w.code}</option>
+                            ))}
+                        </select>
+                        <select className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            <option>全部SKU</option>
+                        </select>
+                        <select className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            <option>全部颜色</option>
+                        </select>
+                        <select className="px-4 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+                            <option>只看 GrillMaster-US 烧烤炉</option>
+                        </select>
+                        <button className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg">
+                            重置
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <div className="dashboard-card p-6 overflow-hidden">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-slate-900">📊 各仓烧烤炉成套备货结构</h3>
+                                <span className="text-xs text-slate-500">152套成套记录 · 239箱件</span>
+                            </div>
+                            <div ref={warehouseChartRef} className="chart-container" />
+                        </div>
+
+                        <div className="dashboard-card p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-slate-900">🚚 ETA 到货预测</h3>
+                                <span className="text-xs text-emerald-600 font-medium">9,971 pcs</span>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="p-4 bg-red-50 rounded-xl border border-red-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-red-800">已到期/待处理</span>
+                                        <span className="text-lg font-bold text-red-600">4,328</span>
+                                    </div>
+                                    <p className="text-xs text-red-600">149单 ASN / 4,328件</p>
+                                    <div className="mt-2 h-2 bg-red-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-red-500 rounded-full" style={{ width: '43%' }} />
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-amber-800">未来7天</span>
+                                        <span className="text-lg font-bold text-amber-600">1,307</span>
+                                    </div>
+                                    <p className="text-xs text-amber-600">15单 ASN / 1,307件</p>
+                                    <div className="mt-2 h-2 bg-amber-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-amber-500 rounded-full" style={{ width: '13%' }} />
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-blue-800">8-14天</span>
+                                        <span className="text-lg font-bold text-blue-600">1,545</span>
+                                    </div>
+                                    <p className="text-xs text-blue-600">19单 ASN / 1,545件</p>
+                                    <div className="mt-2 h-2 bg-blue-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: '15%' }} />
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-emerald-800">15天以上</span>
+                                        <span className="text-lg font-bold text-emerald-600">2,791</span>
+                                    </div>
+                                    <p className="text-xs text-emerald-600">34单 ASN / 2,791件</p>
+                                    <div className="mt-2 h-2 bg-emerald-200 rounded-full overflow-hidden">
+                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: '28%' }} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="dashboard-card overflow-hidden">
+                        <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-transparent">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold text-slate-900">📦 各仓库存明细</h3>
+                                <span className="text-xs text-slate-500">
+                                    按仓库分布查看烧烤炉成品库存
+                                </span>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="table-header">
+                                    <tr>
+                                        <th className="text-left px-4 py-3">仓库代码</th>
+                                        <th className="text-left px-4 py-3">仓库名称</th>
+                                        <th className="text-right px-4 py-3">可售库存</th>
+                                        <th className="text-right px-4 py-3">待入库</th>
+                                        <th className="text-right px-4 py-3">库存状态</th>
+                                        <th className="text-center px-4 py-3">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {demoData.inventory.warehouses.map(wh => (
+                                        <tr key={wh.code} className="table-row">
+                                            <td className="px-4 py-4">
+                                                <p className="font-mono text-sm font-medium text-slate-900">{wh.code}</p>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <p className="text-sm text-slate-900">{wh.name}</p>
+                                            </td>
+                                            <td className="px-4 py-4 text-right">
+                                                <p className="font-semibold text-emerald-600">{wh.available.toLocaleString()}</p>
+                                            </td>
+                                            <td className="px-4 py-4 text-right">
+                                                <p className="font-semibold text-blue-600">{wh.inbound.toLocaleString()}</p>
+                                            </td>
+                                            <td className="px-4 py-4 text-right">
+                                                <span className={`status-badge ${wh.available > 1000 ? 'bg-green-100 text-green-800' : wh.available > 100 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {wh.available > 1000 ? '充足' : wh.available > 100 ? '正常' : '紧张'}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">查看详情</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function ForecastDashboard() {
+            const forecastChartRef = useRef(null);
+
+            useEffect(() => {
+                const charts = [];
+                if (forecastChartRef.current) {
+                    const chart = echarts.init(forecastChartRef.current);
+                    chart.setOption({
+                        tooltip: {
+                            trigger: 'axis',
+                            backgroundColor: 'white',
+                            borderColor: '#e2e8f0'
+                        },
+                        legend: {
+                            data: ['发货计划', '生产计划', '物料计划'],
+                            top: 0
+                        },
+                        grid: {
+                            left: '3%',
+                            right: '4%',
+                            bottom: '3%',
+                            top: '15%',
+                            containLabel: true
+                        },
+                        xAxis: {
+                            type: 'category',
+                            data: demoData.forecast.monthlyPlan.map(p => p.month),
+                            axisLine: { lineStyle: { color: '#e2e8f0' } }
+                        },
+                        yAxis: {
+                            type: 'value',
+                            name: '数量（件）',
+                            axisLine: { lineStyle: { color: '#e2e8f0' } }
+                        },
+                        series: [
+                            {
+                                name: '发货计划',
+                                type: 'line',
+                                smooth: true,
+                                data: demoData.forecast.monthlyPlan.map(p => p.ship),
+                                lineStyle: { color: '#10b981', width: 3 },
+                                areaStyle: { color: 'rgba(16, 185, 129, 0.1)' }
+                            },
+                            {
+                                name: '生产计划',
+                                type: 'line',
+                                smooth: true,
+                                data: demoData.forecast.monthlyPlan.map(p => p.produce),
+                                lineStyle: { color: '#3b82f6', width: 3 },
+                                areaStyle: { color: 'rgba(59, 130, 246, 0.1)' }
+                            },
+                            {
+                                name: '物料计划',
+                                type: 'line',
+                                smooth: true,
+                                data: demoData.forecast.monthlyPlan.map(p => p.material),
+                                lineStyle: { color: '#f59e0b', width: 3 },
+                                areaStyle: { color: 'rgba(245, 158, 11, 0.1)' }
+                            }
+                        ]
+                    });
+                    charts.push(chart);
+                }
+
+                const handleResize = () => charts.forEach(c => c.resize());
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    charts.forEach(c => c.dispose());
+                };
+            }, []);
+
+            return (
+                <div className="page-enter">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <KPICard
+                            title="全年目标完成度"
+                            value={`${demoData.forecast.annualTargetCoverage}%`}
+                            subtitle="2026年全年销售目标"
+                        />
+                        <KPICard
+                            title="Q2目标完成度"
+                            value={`${demoData.forecast.q2TargetCoverage}%`}
+                            subtitle="第二季度销售目标"
+                        />
+                        <KPICard
+                            title="库存支撑率"
+                            value={`${demoData.forecast.inventorySupportRate}%`}
+                            subtitle="现有库存可支撑"
+                        />
+                        <KPICard
+                            title="采购缺口"
+                            value={demoData.forecast.procurementGap.toLocaleString()}
+                            subtitle="需采购SKU数量"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <div className="lg:col-span-2 dashboard-card p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-slate-900">📈 月度计划概览</h3>
+                                <span className="text-xs text-slate-500">未来6个月预测</span>
+                            </div>
+                            <div ref={forecastChartRef} className="chart-container" />
+                        </div>
+
+                        <div className="dashboard-card p-6">
+                            <h3 className="font-semibold text-slate-900 mb-4">⚡ 紧急待办事项</h3>
+                            <div className="space-y-4">
+                                {demoData.forecast.actionItems.map(item => (
+                                    <div key={item.id} className={`p-4 rounded-xl border ${
+                                        item.priority === 'high' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
+                                    }`}>
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                                                    item.priority === 'high' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'
+                                                }`}>
+                                                    {item.priority === 'high' ? '紧急' : '中等'}
+                                                </span>
+                                                <span className="text-sm font-medium text-slate-900">{item.sku}</span>
+                                            </div>
+                                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                                                item.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                                {item.status === 'in_progress' ? '进行中' : '待处理'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-slate-600">{item.description}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <button className="btn-primary w-full mt-4">
+                                生成采购建议
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="dashboard-card overflow-hidden">
+                        <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-transparent">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold text-slate-900">📋 月度计划明细</h3>
+                                <div className="flex items-center gap-2">
+                                    <button className="px-3 py-1 text-sm bg-white border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50">
+                                        导出Excel
+                                    </button>
+                                    <button className="btn-primary text-sm">
+                                        调整计划
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="table-header">
+                                    <tr>
+                                        <th className="text-left px-4 py-3">月份</th>
+                                        <th className="text-right px-4 py-3">发货计划</th>
+                                        <th className="text-right px-4 py-3">生产计划</th>
+                                        <th className="text-right px-4 py-3">物料计划</th>
+                                        <th className="text-right px-4 py-3">产能利用率</th>
+                                        <th className="text-center px-4 py-3">状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {demoData.forecast.monthlyPlan.map((plan, idx) => {
+                                        const utilization = Math.round((plan.produce / plan.material) * 100);
+                                        return (
+                                            <tr key={plan.month} className="table-row">
+                                                <td className="px-4 py-4">
+                                                    <p className="font-medium text-slate-900">{plan.month}</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <p className="text-sm text-emerald-600 font-semibold">{plan.ship.toLocaleString()}</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <p className="text-sm text-blue-600 font-semibold">{plan.produce.toLocaleString()}</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <p className="text-sm text-amber-600 font-semibold">{plan.material.toLocaleString()}</p>
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <div className="w-24 progress-bar">
+                                                            <div 
+                                                                className="progress-fill"
+                                                                style={{
+                                                                    width: `${utilization}%`,
+                                                                    backgroundColor: utilization > 80 ? '#ef4444' : utilization > 60 ? '#f59e0b' : '#10b981'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs font-medium text-slate-600">{utilization}%</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4 text-center">
+                                                    <span className={`status-badge ${
+                                                        idx === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                        {idx === 0 ? '执行中' : '待执行'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
